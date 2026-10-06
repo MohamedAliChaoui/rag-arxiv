@@ -1,0 +1,16 @@
+# ==========================================
+# Dépendances de base du projet RAG
+# (Ajout progressif étape par étape sans sur-ingénierie)
+# ==========================================
+
+# Requêtes HTTP et ingestion de données (Étape 1)
+requests>=2.31.0
+
+# Suivi de progression pour les traitements batch
+tqdm>=4.66.0
+
+# Gestion des variables d'environnement
+python-dotenv>=1.0.0
+
+# Tests unitaires
+pytest>=8.0.0
