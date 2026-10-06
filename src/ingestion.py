@@ -104,14 +104,39 @@ def run_ingestion(
 
     print(f"[*] Reprise : {len(processed_papers)} article(s) déjà présent(s) dans {processed_dir}")
 
+    skipped_file = os.path.join(data_dir, "skipped.json")
     shortfalls: List[Dict[str, Any]] = []
-    skipped_no_html: List[Dict[str, str]] = []
+    skipped_no_html: List[Dict[str, Any]] = []
     skipped_by_month: Dict[str, int] = {f"{y:04d}-{m:02d}": 0 for y, m in all_months}
+
+    # 2. Chargement de la liste des papiers ignorés pour persistance entre reprises
+    if os.path.exists(skipped_file):
+        try:
+            with open(skipped_file, "r", encoding="utf-8") as f:
+                skipped_no_html = json.load(f)
+                for s in skipped_no_html:
+                    sm = s.get("month_stratum")
+                    if sm in skipped_by_month:
+                        skipped_by_month[sm] += 1
+        except Exception:
+            pass
+    elif os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                m_data = json.load(f)
+                skipped_no_html = m_data.get("skipped_papers", [])
+                for s in skipped_no_html:
+                    sm = s.get("month_stratum")
+                    if sm in skipped_by_month:
+                        skipped_by_month[sm] += 1
+        except Exception:
+            pass
+
     accumulated_deficit = 0
 
     pbar = tqdm(total=limit, initial=min(len(processed_papers), limit), desc="Ingestion stratifiée")
 
-    # 2. Itération sur les 24 mois
+    # 3. Itération sur les 24 mois
     for y, m in all_months:
         if len(processed_papers) >= limit:
             break
@@ -165,7 +190,7 @@ def run_ingestion(
                         "arxiv_id": arxiv_id,
                         "title": paper["title"],
                         "month_stratum": month_key,
-                        "reason": "HTML indisponible (code != 200)",
+                        "reason": "pas de version HTML (code HTTP 404)",
                     })
                     continue
 
@@ -306,6 +331,7 @@ def run_ingestion(
             "target_limit": limit,
             "sampling_strategy": "stratified_monthly_by_relevance",
             "date_range": "2024-01 to 2025-12 (24 months)",
+            "month_stratum_source": "date de soumission API arXiv (submittedDate)",
             "query_template": (
                 '(cat:cs.CL OR cat:cs.IR) AND '
                 '(ti:"retrieval-augmented generation" OR abs:"retrieval-augmented generation") AND '
@@ -331,6 +357,9 @@ def run_ingestion(
 
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest_data, f, ensure_ascii=False, indent=2)
+
+    with open(skipped_file, "w", encoding="utf-8") as f:
+        json.dump(skipped_no_html, f, ensure_ascii=False, indent=2)
 
     # 6. Affichage du rapport récapitulatif détaillé
     _print_summary_report(
