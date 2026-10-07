@@ -217,3 +217,36 @@ def test_block_range_and_char_count_presence():
         assert "Document: Document Breadcrumb Test" in p["contextual_content"]
         assert "Section: 1 Overview" in p["contextual_content"]
         assert p["content"] in p["contextual_content"]
+
+
+def test_oversized_flag_for_long_passages():
+    """Vérifie que le champ oversized: True est bien apposé aux passages > 350 mots."""
+    # Tableau indivisible dont une seule ligne dépasse 350 mots
+    long_row = "| " + " ".join(["value"] * 400) + " |"
+    table_content = "[Table 1: Huge table]\n| Col1 |\n| --- |\n" + long_row
+    paper = {
+        "arxiv_id": "2401.99999v1",
+        "clean_id": "2401.99999",
+        "title": "Oversized Test Paper",
+        "sections": [
+            {
+                "section_id": "S1",
+                "heading": "1 Results",
+                "blocks": [
+                    {"type": "table", "content": table_content},
+                    {"type": "text", "content": "Short normal text passage with enough words to stand alone. " * 5},
+                ],
+            }
+        ],
+    }
+
+    passages, _ = chunk_paper(paper)
+    table_p = next(p for p in passages if p["type"] == "table")
+    text_p = next(p for p in passages if p["type"] == "text")
+
+    assert table_p["word_count"] > 350
+    assert table_p.get("oversized") is True
+
+    assert text_p["word_count"] <= 350
+    assert "oversized" not in text_p
+

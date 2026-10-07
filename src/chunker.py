@@ -478,10 +478,12 @@ def chunk_section(
         max_words=max_words,
     )
 
-    # Attribution séquentielle des passage_id contigus
+    # Attribution séquentielle des passage_id contigus et marquage oversized (> 350 mots)
     final_passages: List[Dict[str, Any]] = []
     counter = passage_counter_start
     for p in merged_passages:
+        if p["word_count"] > 350:
+            p["oversized"] = True
         p["passage_id"] = f"{clean_id}_p{counter:04d}"
         counter += 1
         final_passages.append(p)
