@@ -1,7 +1,8 @@
 # ==========================================
-# Journal de bord (personnel)
+# Journal de bord et consignes locales (personnels)
 # ==========================================
 JOURNAL.md
+RULES.md
 
 # ==========================================
 # Environnement virtuel Python
