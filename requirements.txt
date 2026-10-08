@@ -7,7 +7,7 @@
 requests>=2.31.0
 
 # Suivi de progression pour les traitements batch
-tqdm>=4.66.0
+tqdm==4.70.1
 
 # Gestion des variables d'environnement
 python-dotenv>=1.0.0
@@ -20,3 +20,10 @@ pytest>=8.0.0
 
 # Retrieval lexical BM25 (Étape 3)
 bm25s==0.3.13
+
+# Retrieval dense vectoriel (Étape 4)
+torch==2.14.1
+transformers==5.19.0
+tokenizers==0.23.2
+sentence-transformers==6.1.0
+psutil==7.2.2

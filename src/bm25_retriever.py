@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import bm25s
 
+from src.indexing_utils import INDEXING_RULES_VERSION, text_for_indexing
 from src.retriever_base import BaseRetriever, SearchResult
 from src.tokenizer import ScientificTokenizer, TokenizerConfig
 
@@ -107,7 +108,7 @@ class BM25Retriever(BaseRetriever):
                     continue
 
                 pid = p["passage_id"]
-                raw_text = p.get(self.indexed_field, "")
+                raw_text = text_for_indexing(p, field=self.indexed_field)
                 if not raw_text:
                     continue
 
@@ -145,6 +146,7 @@ class BM25Retriever(BaseRetriever):
             "num_passages": len(passage_ids),
             "passages_file": passages_path,
             "passages_sha256": file_sha256,
+            "indexing_rules_version": INDEXING_RULES_VERSION,
             "tokenizer_config": self.tokenizer_config.to_dict(),
             "bm25_params": {
                 "k1": self.k1,
@@ -209,7 +211,14 @@ class BM25Retriever(BaseRetriever):
 
         retriever.passage_ids = meta.get("passage_ids", [])
         retriever.passages_metadata = meta.get("passages_metadata", {})
-        retriever.metadata_info = {k: v for k, v in meta.items() if k not in ("passage_ids", "passages_metadata")}
+        # Contrôle de version des règles d'indexation
+        saved_rules_version = meta.get("indexing_rules_version")
+        if saved_rules_version and saved_rules_version != INDEXING_RULES_VERSION:
+            raise ValueError(
+                f"Incompatibilité de version des règles d'indexation : "
+                f"l'index utilise la version '{saved_rules_version}', "
+                f"mais le code requiert '{INDEXING_RULES_VERSION}'."
+            )
 
         # Contrôle d'empreinte SHA-256 de passages.jsonl
         passages_path = meta.get("passages_file", "data/passages.jsonl")
