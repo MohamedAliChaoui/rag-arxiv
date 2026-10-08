@@ -189,13 +189,66 @@ def test_bm25_retriever_save_load_and_fingerprint():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_empty_passage_alignment_at_beginning_and_middle():
+    """
+    Test unitaire d'alignement robuste :
+    Vérifie qu'un passage sans jeton (content ':') placé soit au début, soit au milieu
+    du corpus n'introduit aucun décalage (off-by-one ou permutation) entre les positions
+    internes du moteur bm25s et les identifiants passage_ids.
+    Pour chaque passage non-vide indexé, la recherche avec sa propre phrase doit renvoyer
+    strictement son propre passage_id au rang 1.
+    """
+    import json
+    import tempfile
+
+    docs_data = [
+        ("p_alpha", "alpha unique keyword dataset for retrieval testing"),
+        ("p_beta", "beta specific representation learning in neural network"),
+        ("p_gamma", "gamma advanced transformer architecture with cross attention"),
+    ]
+    empty_doc = ("p_empty", ":")
+
+    for position in ["beginning", "middle"]:
+        if position == "beginning":
+            corpus = [empty_doc, docs_data[0], docs_data[1], docs_data[2]]
+        else:
+            corpus = [docs_data[0], empty_doc, docs_data[1], docs_data[2]]
+
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix=".jsonl") as f:
+            for pid, text in corpus:
+                f.write(json.dumps({"passage_id": pid, "type": "text", "word_count": len(text.split()), "content": text}) + "\n")
+            tmp_path = f.name
+
+        try:
+            retriever = BM25Retriever(indexed_field="content", indexed_types=["text"])
+            retriever.build_index(tmp_path, show_progress=False)
+
+            # Vérification du filtrage
+            assert len(retriever.passage_ids) == 3
+            assert "p_empty" not in retriever.passage_ids
+
+            # Vérification que chaque document indexé retrouve strictement son propre passage_id au rang 1
+            for pid, text in docs_data:
+                results = retriever.search(text, k=1)
+                assert len(results) == 1, f"Échec de recherche pour {pid} (position: {position})"
+                assert results[0].passage_id == pid, (
+                    f"Décalage d'alignement détecté pour {pid} avec passage vide à {position} : "
+                    f"reçu {results[0].passage_id}"
+                )
+                assert results[0].rank == 1
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+
 def test_self_retrieval_and_index_alignment():
     """
-    Test d'auto-récupération sur 200 passages tirés au hasard (graine fixe) :
-    1. La requête est formée par les 15 premiers mots du passage.
-    2. Le passage d'origine doit être retrouvé dans le top-5 pour les deux index.
-    3. Mesure du taux top-1 (>= 80%) et top-5 (>= 95%).
-    4. Vérifie l'absence de dérive d'alignement causée par le passage vide exclu.
+    Contrôle de cohérence d'auto-récupération sur 200 passages tirés au hasard (graine fixe) :
+    Ce test n'est pas un taux de rappel d'évaluation (benchmark à l'étape 8), mais un contrôle
+    de cohérence interne (requête = 15 premiers mots du passage).
+    1. Le passage d'origine doit être retrouvé dans le top-5 pour les deux index.
+    2. Mesure du taux de premier rang top-1 (>= 75%) et top-5 (>= 95%).
+    3. Vérifie l'absence de dérive d'alignement causée par le passage vide exclu.
     """
     import random
     import json
@@ -252,4 +305,5 @@ def test_self_retrieval_and_index_alignment():
         idx_after = retriever_c.passage_ids.index(p_after)
         # Strictement contigus sans dérive
         assert idx_after == idx_before + 1
+
 
