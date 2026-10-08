@@ -2,13 +2,15 @@
 Script de contrôle qualité indépendant pour le découpage en passages (chunking).
 
 Méthode de vérification :
-1. Intégrité intra-section (Confinement strict) :
+1. Intégrité intra-section (Confinement strict et absence de fuite) :
    - Pour chaque passage de type 'text', extraction de tous les n-grammes de 8 mots consécutifs.
-   - Vérification que le multiensemble de ces n-grammes est strictement inclus dans le
-     multiensemble des n-grammes de la section source déclarée (data/processed/).
-   - Test de non-fuite : vérification qu'aucun n-gramme du passage ne provient exclusivement
-     d'une autre section du document.
+   - La vérification de fuite contrôle formellement que chaque 8-gramme d'un passage existe
+     dans le texte source de SA section d'origine (data/processed/).
+   - Si un 8-gramme est absent du texte source de sa section et présent dans une autre section,
+     il est comptabilisé comme une fuite inter-sections critique.
 2. Taux de couverture du texte source (Multiensemble de n-grammes de 8 mots) :
+   - La couverture concerne EXCLUSIVEMENT les blocs textuels sources (type 'text'),
+     à l'exclusion des tableaux et des légendes de figures (traités en passages spécialisés).
    - Pour chaque bloc textuel source de chaque section, extraction du multiensemble des n-grammes
      de 8 mots consécutifs (via collections.Counter).
    - Intersection multiensemble (min des occurrences) entre les n-grammes sources et les n-grammes
@@ -16,7 +18,8 @@ Méthode de vérification :
    - Taux de couverture = (total des 8-grammes couverts) / (total des 8-grammes sources).
 3. Contrôle des bornes et des métadonnées :
    - Vérification que chaque block_range [start, end] respecte les bornes des blocs de la section.
-   - Comptage des passages textuels sous le seuil minimal de 60 mots et sous 20 mots.
+   - Comptage des passages textuels sous le seuil minimal de 60 mots et sous 20 mots
+     (majoritairement des phrases introductives isolées).
    - Comptage et typage des passages dépassant 350 mots (marqués 'oversized: true').
 """
 
@@ -26,6 +29,11 @@ import re
 import sys
 from collections import Counter
 from typing import Dict, List, Tuple
+
+# Seuils explicites de validation qualité
+MIN_COVERAGE_THRESHOLD = 100.0  # Taux minimal de couverture exigé (en %) - égalité exacte 100.0%
+MAX_CROSS_SECTION_LEAKS = 0     # Zéro fuite inter-sections tolérée
+MAX_INVALID_BLOCK_RANGES = 0    # Zéro anomalie d'indexation de blocs tolérée
 
 
 def get_8grams(words: List[str]) -> List[Tuple[str, ...]]:
@@ -169,11 +177,15 @@ def check_chunks(
     print(f"  - Passages text < 20 mots    : {len(text_under_20):,} ({len(text_under_20)/len(text_passages)*100:.1f}%)")
     print("=" * 75)
 
-    if cross_section_leaks == 0 and invalid_block_ranges == 0 and coverage_rate > 99.9:
-        print("[SUCCÈS] Contrôle qualité indépendant validé sans anomalie.")
+    if (
+        cross_section_leaks <= MAX_CROSS_SECTION_LEAKS
+        and invalid_block_ranges <= MAX_INVALID_BLOCK_RANGES
+        and coverage_rate >= MIN_COVERAGE_THRESHOLD
+    ):
+        print(f"[SUCCÈS] Contrôle qualité indépendant validé sans anomalie (seuil minimal: {MIN_COVERAGE_THRESHOLD}%).")
         return 0
     else:
-        print("[ATTENTION] Des anomalies ont été détectées.")
+        print(f"[ATTENTION] Des anomalies ont été détectées ou couverture < {MIN_COVERAGE_THRESHOLD}%.")
         return 1
 
 
