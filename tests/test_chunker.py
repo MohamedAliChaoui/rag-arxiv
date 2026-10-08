@@ -33,6 +33,32 @@ def test_split_sentences_scientific():
     assert "Yes, i.e." in sents[3]
 
 
+def test_split_sentences_preserves_casing_and_urls():
+    """
+    Test de non-régression : vérifie que la protection des abréviations
+    restitue rigoureusement la casse originale et n'altère pas Quoref., No./no.,
+    ni les URL contenant 'sec.' (ex: https://www.sec.gov).
+    """
+    text = (
+        "We evaluate on Quoref. Results are shown in Table 1. "
+        "Grant No. 12345 was received, but no. 67890 was rejected. "
+        "More details are available at https://www.sec.gov/files/cf-frm.pdf. Next study follows."
+    )
+    sents = split_sentences(text)
+    assert len(sents) == 5
+    # 1. Quoref ne doit pas être altéré en QuoRef et doit être scindé en fin de phrase
+    assert sents[0] == "We evaluate on Quoref."
+    assert sents[1] == "Results are shown in Table 1."
+
+    # 2. No. et no. conservent strictement leur casse respective
+    assert "No. 12345" in sents[2]
+    assert "no. 67890" in sents[2]
+
+    # 3. L'URL contenant 'sec.' conserve son écriture minuscule exacte (pas Sec.gov)
+    assert "https://www.sec.gov/files/cf-frm.pdf" in sents[3]
+    assert sents[4] == "Next study follows."
+
+
 def test_build_section_path_hierarchy_and_appendices():
     """Vérifie la résolution hiérarchique, les annexes (A...) et le fallback des parents absents."""
     smap = {

@@ -28,6 +28,9 @@ def split_sentences(text: str) -> List[str]:
     """
     Découpe un texte en phrases en protégeant les abréviations scientifiques
     usuelles (ex: 'et al.', 'i.e.', 'Fig. 1', 'Eq. 2', décimales '0.85').
+    
+    Restitue rigoureusement le texte original pour chaque occurrence protégée
+    (sans altération de casse ni substitution globale).
     """
     if not text:
         return []
@@ -38,14 +41,20 @@ def split_sentences(text: str) -> List[str]:
         "Ref.", "Refs.", "Sec.", "Secs.", "al.", "approx.", "no.", "vol.", "pp.",
         "dr.", "prof.", "dept."
     ]
-    substitutions: Dict[str, str] = {}
-    protected = text
+    sorted_abbrevs = sorted(abbrevs, key=len, reverse=True)
+    pattern = re.compile(r"\b(?:" + "|".join(re.escape(a) for a in sorted_abbrevs) + ")", re.IGNORECASE)
 
-    for idx, abb in enumerate(abbrevs):
-        token = f"__ABB_{idx}__"
-        pattern = re.compile(re.escape(abb), re.IGNORECASE)
-        protected = pattern.sub(token, protected)
-        substitutions[token] = abb
+    substitutions: Dict[str, str] = {}
+    counter = 0
+
+    def _protect_callback(match: re.Match) -> str:
+        nonlocal counter
+        token = f"__ABB_{counter}__"
+        counter += 1
+        substitutions[token] = match.group(0)
+        return token
+
+    protected = pattern.sub(_protect_callback, text)
 
     # Protéger les nombres à virgule/point (ex: 0.95 ou 1.2)
     protected = re.sub(r"(\d)\.(\d)", r"\1__DOT__\2", protected)
@@ -60,17 +69,17 @@ def split_sentences(text: str) -> List[str]:
         if re.search(r"[.!?]+(?:\s+|$)", p):
             s = current.strip()
             if s:
-                # Restauration des abréviations et points protégés
-                for token, abb in substitutions.items():
-                    s = s.replace(token, abb)
+                # Restauration exacte du texte d'origine
+                for token, original_str in substitutions.items():
+                    s = s.replace(token, original_str)
                 s = s.replace("__DOT__", ".")
                 sentences.append(s)
             current = ""
 
     if current.strip():
         s = current.strip()
-        for token, abb in substitutions.items():
-            s = s.replace(token, abb)
+        for token, original_str in substitutions.items():
+            s = s.replace(token, original_str)
         s = s.replace("__DOT__", ".")
         sentences.append(s)
 
@@ -679,3 +688,8 @@ def _print_chunking_report(rep: Dict[str, Any]) -> None:
     print(f"  - Erreurs inter-sections    : {rep['cross_section_errors']} (100% strictement confinés à une section)")
     print(f"  - Chemins avec parent absent: {rep['papers_with_missing_parents']} / {rep['total_papers']} papiers (résolus par fallback)")
     print("=" * 75 + "\n")
+
+
+if __name__ == "__main__":
+    chunk_corpus()
+
