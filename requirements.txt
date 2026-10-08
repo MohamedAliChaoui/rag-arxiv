@@ -17,3 +17,6 @@ beautifulsoup4>=4.12.0
 
 # Tests unitaires
 pytest>=8.0.0
+
+# Retrieval lexical BM25 (Étape 3)
+bm25s==0.3.13
