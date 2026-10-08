@@ -59,6 +59,19 @@ def test_split_sentences_preserves_casing_and_urls():
     assert sents[4] == "Next study follows."
 
 
+def test_split_sentences_word_boundary_and_et_al_protection():
+    """
+    Vérifie qu'un mot se terminant par 'al.' (ex: retrieval.) ne piège pas l'abréviation 'al.'
+    et se coupe bien en deux phrases, tout en maintenant 'et al.' protégé.
+    """
+    text = "The system determines whether the input query needs retrieval. Our library includes the code from Smith et al. for evaluation."
+    sents = split_sentences(text)
+    assert len(sents) == 2
+    assert sents[0] == "The system determines whether the input query needs retrieval."
+    assert sents[1] == "Our library includes the code from Smith et al. for evaluation."
+    assert "Smith et al." in sents[1]
+
+
 def test_build_section_path_hierarchy_and_appendices():
     """Vérifie la résolution hiérarchique, les annexes (A...) et le fallback des parents absents."""
     smap = {

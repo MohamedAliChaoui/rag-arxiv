@@ -270,7 +270,7 @@ def test_self_retrieval_and_index_alignment():
         if not os.path.exists(index_dir):
             pytest.skip(f"Index {index_dir} non construit.")
 
-        retriever = BM25Retriever.load(index_dir, verify_fingerprint=False)
+        retriever = BM25Retriever.load(index_dir, verify_fingerprint=True)
         top1_hits = 0
         top5_hits = 0
 
@@ -298,7 +298,7 @@ def test_self_retrieval_and_index_alignment():
         p_before = jsonl_pids[idx_in_jsonl - 1]
         p_after = jsonl_pids[idx_in_jsonl + 1]
 
-        retriever_c = BM25Retriever.load("data/index/bm25_content", verify_fingerprint=False)
+        retriever_c = BM25Retriever.load("data/index/bm25_content", verify_fingerprint=True)
         assert target_pid not in retriever_c.passage_ids
 
         idx_before = retriever_c.passage_ids.index(p_before)
