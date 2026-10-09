@@ -182,3 +182,36 @@ def test_text_for_indexing_point_of_entry():
     assert text_for_indexing(passage, field="content") == "Raw content text"
     assert text_for_indexing(passage, field="contextual_content") == "Doc: A | Section: B | Raw content text"
     assert text_for_indexing({}, field="content") == ""
+
+
+def test_dense_metadata_model_revision(tmp_path):
+    """Vérifie que la révision du modèle est correctement conservée et exposée."""
+    embs = np.ones((1, 384), dtype=np.float32)
+    meta = {
+        "model_name": "BAAI/bge-small-en-v1.5",
+        "model_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+        "n_passages": 1,
+    }
+    retriever = DenseRetriever(
+        embeddings=embs,
+        passage_ids=["p1"],
+        metadata=meta,
+    )
+    assert retriever.model_revision == "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+
+    idx_dir = tmp_path / "idx_rev"
+    retriever.save(idx_dir)
+    loaded = DenseRetriever.load(idx_dir, verify_fingerprint=False)
+    assert loaded.model_revision == "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+
+
+def test_get_model_commit_hash_resolution():
+    """Vérifie la fonction de détection de commit Hugging Face sur le modèle du projet."""
+    from scripts.build_dense_index import get_model_commit_hash
+
+    # Doit résoudre l'empreinte depuis le cache local sans lever d'exception
+    h = get_model_commit_hash("BAAI/bge-small-en-v1.5")
+    assert isinstance(h, str)
+    assert len(h) == 40
+    assert h == "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+

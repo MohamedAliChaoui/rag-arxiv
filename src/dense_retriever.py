@@ -58,6 +58,7 @@ class DenseRetriever(BaseRetriever):
         self.passage_ids = passage_ids or []
         self.passages = passages or []
         self.metadata = metadata or {}
+        self.model_revision = self.metadata.get("model_revision")
 
         # Table d'accès rapide id -> passage
         self._passage_map: Dict[str, Dict[str, Any]] = {

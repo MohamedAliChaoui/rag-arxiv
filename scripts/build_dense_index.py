@@ -48,12 +48,36 @@ def get_process_memory_mb() -> float:
     return process.memory_info().rss / (1024 * 1024)
 
 
+def get_model_commit_hash(model_name: str) -> str:
+    """Tente de résoudre l'empreinte de commit exacte (SHA) du modèle Hugging Face."""
+    # 1. Inspection du cache local Hugging Face (rapide, hors-ligne)
+    try:
+        from huggingface_hub import scan_cache_dir
+        for repo in scan_cache_dir().repos:
+            if repo.repo_id == model_name:
+                for rev in repo.revisions:
+                    if rev.commit_hash:
+                        return rev.commit_hash
+    except Exception:
+        pass
+    # 2. Requête vers le Hub Hugging Face si le réseau est accessible
+    try:
+        from huggingface_hub import model_info
+        info = model_info(model_name)
+        if getattr(info, "sha", None):
+            return str(info.sha)
+    except Exception:
+        pass
+    return ""
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Construit l'index dense vectoriel avec SentenceTransformers.")
     parser.add_argument("--passages", type=str, default="data/passages.jsonl", help="Chemin du corpus JSONL.")
     parser.add_argument("--field", type=str, default="content", choices=["content", "contextual_content"], help="Champ à indexer.")
     parser.add_argument("--output", type=str, default="data/index/dense_content", help="Dossier de sortie.")
     parser.add_argument("--model-name", type=str, default="BAAI/bge-small-en-v1.5", help="Nom du modèle Hugging Face.")
+    parser.add_argument("--model-revision", type=str, default=None, help="Hash de commit Hugging Face du modèle (détecté automatiquement si omis).")
     parser.add_argument("--query-prefix", type=str, default="Represent this sentence for searching relevant passages: ", help="Préfixe d'instruction pour les requêtes.")
     parser.add_argument("--batch-size", type=int, default=32, help="Taille des batchs d'encodage.")
     parser.add_argument("--checkpoint-every", type=int, default=1000, help="Nombre de passages par bloc de checkpoint.")
@@ -74,10 +98,16 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
+    model_revision = args.model_revision or get_model_commit_hash(args.model_name)
+    if not model_revision:
+        logger.warning("Impossible de résoudre l'empreinte de commit du modèle %s.", args.model_name)
+
     print("=" * 65)
     print(f"CONSTRUCTION DE L'INDEX DENSE VECTORIEL : {args.field.upper()}")
     print("=" * 65)
     print(f"Modèle             : {args.model_name} (baseline léger et reproductible sur CPU)")
+    if model_revision:
+        print(f"Révision du modèle : {model_revision}")
     print(f"Fichier source     : {passages_path}")
     print(f"Dossier de sortie  : {out_dir}")
     print(f"Threads PyTorch    : {args.num_threads} (CPU)")
@@ -229,6 +259,7 @@ def main():
 
     metadata = {
         "model_name": args.model_name,
+        "model_revision": model_revision,
         "model_description": "baseline léger et reproductible sur CPU",
         "dimension": int(final_embeddings.shape[1]),
         "field": args.field,
@@ -259,7 +290,7 @@ def main():
     print("\n" + "=" * 65)
     print("RAPPORT D'INDEXATION DENSE VECTORIELLE")
     print("=" * 65)
-    print(f"Modèle                 : {args.model_name}")
+    print(f"Modèle                 : {args.model_name} (révision: {model_revision or 'inconnue'})")
     print(f"Nombre de passages     : {total_passages}")
     print(f"Forme de la matrice    : {final_embeddings.shape} (float32)")
     print(f"Taille embeddings.npy  : {file_size_mb:.2f} Mo")
